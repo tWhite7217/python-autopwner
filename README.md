@@ -1,0 +1,1 @@
+A Python-based script for automatically solving basic CTF problems. Based largely on autopwner, created by Christopher Outhwaite (@chriskout), Andy Novocin (@AndyNovo), and Landon Jones (@LandonJones).
