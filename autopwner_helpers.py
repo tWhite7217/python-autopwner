@@ -198,3 +198,26 @@ def find_execve_gadgets(binary_name):
     except Exception as e:
         print(e)
         return -1
+
+def determine_data_section_address(binary_name):
+    p1 = subprocess.Popen(["rabin2", "-S", binary_name], stdout=subprocess.PIPE)
+    p2 = subprocess.run(["grep", "\.data$"], stdin=p1.stdout, stdout=subprocess.PIPE)
+    data_section_address = p2.stdout[24:34]
+    data_section_address = int(data_section_address, 16)
+    return data_section_address
+
+# def search_challenge_for_given_leak(challenge_info):
+#     binary_name = challenge_info["binary_name"]
+#     p = process(binary_name)
+#     potential_leaks = []
+#     output = p.recv()
+#     for i in range(5):
+#         try:
+#             potential_leaks += search_output_for_given_leaks(output)
+#             p.sendline("A")
+#             output = p.recv()
+#         except:
+#             break
+#     return leak_to_return
+
+# def search_output_for_given_leaks(output):

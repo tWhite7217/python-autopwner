@@ -68,10 +68,17 @@ if not elf.pie and execve_gadgets != -1:
     if (shell_achieved):
         exit()
 
-if not elf.nx: # and stack_leak_exists_or_possible
-    print("Attempting shellcode on stack")
-    #if (shell_achieved):
-        #exit()
+# if not elf.nx:
+    # print("Attempting shellcode on stack exploit")
+    # print("See if the challenge provides a leak")
+    # shell_achieved = shellcode_with_given_leak(challenge_info)
+    # if (shell_achieved):
+    #     exit()
+
+    # print("See if a stack leak can be forced")
+    # shell_achieved = shellcode_with_forced_leak()
+    # if (shell_achieved):
+    #     exit()
 
 # if win_function exists:
     # print("Attempting to use a win function")
@@ -79,4 +86,3 @@ if not elf.nx: # and stack_leak_exists_or_possible
         #exit()
 
 print("This binary is not compatible!")
-
